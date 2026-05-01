@@ -1,0 +1,40 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [
+    "migrations",
+    ".venv",
+    "staticfiles",
+    "media",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # bugbear
+    "C4",  # comprehensions
+    "UP",  # pyupgrade
+    "DJ",  # django-specific
+]
+ignore = [
+    "E501",  # line too long (black handles it)
+    "B008",  # function calls in argument defaults (Django uses these)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"settings/*.py" = ["F405", "F403"]  # allow star imports in settings
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+extend-exclude = '''
+/(
+    migrations
+  | \.venv
+  | staticfiles
+  | media
+)/
+'''

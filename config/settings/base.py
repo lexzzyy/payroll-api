@@ -2,7 +2,9 @@
 Base settings shared across all environments.
 Country-pluggable, currency-aware, multi-tenant payroll API.
 """
+
 from pathlib import Path
+
 import environ
 
 # ---------------------------------------------------------------------
@@ -102,8 +104,10 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-     "OPTIONS": {"min_length": 10}},
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 10},
+    },
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
@@ -114,7 +118,7 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
-USE_TZ = True   # Always store datetimes in UTC
+USE_TZ = True  # Always store datetimes in UTC
 
 # Currency support via django-money
 CURRENCIES = ("NGN", "USD", "GBP", "EUR", "KES", "ZAR", "GHS")

@@ -27,3 +27,6 @@ Thumbs.db
 
 # Docker
 .dockerignore
+celerybeat-schedule
+.pytest_cache/
+.ruff_cache/
