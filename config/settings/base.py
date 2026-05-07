@@ -46,7 +46,7 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     # Will be populated as we create apps:
-    # "apps.accounts",
+    "apps.accounts",
     # "apps.organisations",
     # "apps.employees",
     # "apps.payroll",
@@ -100,7 +100,7 @@ DATABASES = {
 # ---------------------------------------------------------------------
 # Auth (custom user model placeholder — created in Phase 6)
 # ---------------------------------------------------------------------
-# AUTH_USER_MODEL = "accounts.User"  # We'll uncomment once the app exists
+AUTH_USER_MODEL = "accounts.User"
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
