@@ -47,7 +47,7 @@ THIRD_PARTY_APPS = [
 LOCAL_APPS = [
     # Will be populated as we create apps:
     "apps.accounts",
-    # "apps.organisations",
+    "apps.organisations",
     # "apps.employees",
     # "apps.payroll",
     # "apps.leave",
