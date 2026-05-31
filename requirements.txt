@@ -5,6 +5,7 @@ babel==2.18.0
 billiard==4.2.4
 black==26.3.1
 celery==5.6.3
+cffi==2.0.0
 cfgv==3.5.0
 click==8.3.3
 click-didyoumean==0.3.1
@@ -12,6 +13,7 @@ click-plugins==1.1.1.2
 click-repl==0.3.0
 colorama==0.4.6
 coverage==7.13.5
+cryptography==48.0.0
 distlib==0.4.0
 Django==5.1.15
 django-cors-headers==4.9.0
@@ -21,6 +23,7 @@ django-stubs==6.0.3
 django-stubs-ext==6.0.3
 djangorestframework==3.17.1
 djangorestframework-stubs==3.16.9
+djangorestframework_simplejwt==5.5.1
 drf-spectacular==0.29.0
 factory_boy==3.3.3
 Faker==40.15.0
@@ -45,7 +48,9 @@ prompt_toolkit==3.0.52
 psycopg==3.3.3
 psycopg-binary==3.3.3
 py-moneyed==3.0
+pycparser==3.0
 Pygments==2.20.0
+PyJWT==2.12.1
 pytest==9.0.3
 pytest-cov==7.1.0
 pytest-django==4.12.0

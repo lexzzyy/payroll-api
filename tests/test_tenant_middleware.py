@@ -66,10 +66,10 @@ def accepted_membership(db, user, organisation):
 @pytest.fixture
 def client_with_test_url(settings):
     """
-    Inject a test URL `/test-tenant/` that returns whatever the middleware
-    attached to the request. This lets us assert on middleware behaviour
-    without needing real API endpoints yet.
+    Override the ROOT_URLCONF with a test-specific urlconf that includes
+    a /test-tenant/ echo view alongside the real URLs.
     """
+    import django.urls
     from django.http import JsonResponse
 
     def view(request):
@@ -81,16 +81,24 @@ def client_with_test_url(settings):
             }
         )
 
-    # Override URLconf for this test only
+    # Build a fresh urlconf module with our test URL added
+    import types
 
-    # We need to inject our test URL into the urlconf
-    import config.urls as urlconf
+    import config.urls as base_urls
 
-    urlconf.urlpatterns = list(urlconf.urlpatterns) + [
+    test_urlconf = types.ModuleType("test_urlconf")
+    test_urlconf.urlpatterns = list(base_urls.urlpatterns) + [
         path("test-tenant/", view, name="test-tenant"),
     ]
 
-    return Client()
+    settings.ROOT_URLCONF = test_urlconf
+    django.urls.clear_url_caches()
+
+    yield Client()
+
+    # Restore original urlconf
+    settings.ROOT_URLCONF = "config.urls"
+    django.urls.clear_url_caches()
 
 
 # ----------------------------------------------------------------------

@@ -8,7 +8,10 @@ profile data — though for v1 they live on the same row for simplicity.
 
 from __future__ import annotations
 
+import secrets
 import uuid
+from datetime import timedelta
+from hashlib import sha256
 
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
@@ -125,3 +128,88 @@ class User(AbstractBaseUser, PermissionsMixin):
         self.email_verified = True
         self.email_verified_at = timezone.now()
         self.save(update_fields=["email_verified", "email_verified_at"])
+
+
+class EmailVerification(models.Model):
+    """
+    Single-use, time-bounded email verification tokens.
+
+    The plain token is sent to the user via email. Only its hash is stored
+    in the database — so even a full database dump wouldn't let an attacker
+    activate any account.
+    """
+
+    user = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.CASCADE,
+        related_name="email_verifications",
+    )
+    token_hash = models.CharField(
+        max_length=64,
+        unique=True,
+        db_index=True,
+        help_text=_("SHA-256 hex digest of the plain token. 64 hex chars."),
+    )
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_("Set when the token is consumed. Tokens are single-use."),
+    )
+
+    # Token lifetime — 24 hours from issue
+    TOKEN_LIFETIME = timedelta(hours=24)
+
+    class Meta:
+        verbose_name = _("email verification")
+        verbose_name_plural = _("email verifications")
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["user", "used_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Verification for {self.user.email} (created {self.created_at:%Y-%m-%d})"
+
+    @classmethod
+    def generate(cls, user: User) -> tuple[EmailVerification, str]:
+        """
+        Create a new verification record for the user.
+
+        Returns the record and the *plain* token. The plain token is what
+        gets emailed; only the hash is persisted.
+        """
+        plain_token = secrets.token_urlsafe(48)  # ~64 chars, URL-safe
+        token_hash = sha256(plain_token.encode()).hexdigest()
+        verification = cls.objects.create(
+            user=user,
+            token_hash=token_hash,
+            expires_at=timezone.now() + cls.TOKEN_LIFETIME,
+        )
+        return verification, plain_token
+
+    @classmethod
+    def find_valid(cls, plain_token: str) -> EmailVerification | None:
+        """
+        Look up a non-expired, non-used verification record by plain token.
+
+        Returns None if the token doesn't match any record, has expired,
+        or has already been used. The caller cannot distinguish between
+        these cases — that's intentional.
+        """
+        token_hash = sha256(plain_token.encode()).hexdigest()
+        return (
+            cls.objects.filter(
+                token_hash=token_hash,
+                used_at__isnull=True,
+                expires_at__gt=timezone.now(),
+            )
+            .select_related("user")
+            .first()
+        )
+
+    def consume(self) -> None:
+        """Mark this token as used. Single-use enforcement."""
+        self.used_at = timezone.now()
+        self.save(update_fields=["used_at"])

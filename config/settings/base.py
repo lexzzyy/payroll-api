@@ -3,6 +3,7 @@ Base settings shared across all environments.
 Country-pluggable, currency-aware, multi-tenant payroll API.
 """
 
+from datetime import timedelta
 from pathlib import Path
 
 import environ
@@ -39,6 +40,8 @@ DJANGO_APPS = [
 
 THIRD_PARTY_APPS = [
     "rest_framework",
+    "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",  # for logout/blacklisting
     "corsheaders",
     "drf_spectacular",
     "djmoney",
@@ -135,13 +138,18 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Frontend base URL — used in emails for clickable links.
+# In production, set this to the deployed frontend domain.
+FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:3000")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@payroll-api.local")
+
 # ---------------------------------------------------------------------
 # DRF + OpenAPI
 # ---------------------------------------------------------------------
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        # We'll add JWT in Week 2
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
@@ -149,6 +157,25 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 25,
+}
+
+SIMPLE_JWT = {
+    # Token lifetimes
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    # Rotation — when a refresh token is used, issue a new one and blacklist the old
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    # Signing
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,  # reuse Django's secret key for HMAC signing
+    # Claims
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+    "TOKEN_TYPE_CLAIM": "token_type",
+    # Headers
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",
 }
 
 SPECTACULAR_SETTINGS = {

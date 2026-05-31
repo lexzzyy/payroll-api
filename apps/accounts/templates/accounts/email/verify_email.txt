@@ -1,0 +1,10 @@
+Hello {{ user.short_name }},
+
+Welcome! Please verify your email address by clicking the link below:
+
+{{ verification_url }}
+
+This link will expire in 24 hours. If you didn't sign up, ignore this email.
+
+— The Payroll API team
+{{ support_email }}

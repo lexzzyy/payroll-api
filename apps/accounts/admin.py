@@ -6,7 +6,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.utils.translation import gettext_lazy as _
 
-from .models import User
+from .models import EmailVerification, User
 
 
 @admin.register(User)
@@ -64,3 +64,16 @@ class UserAdmin(DjangoUserAdmin):
             },
         ),
     )
+
+
+@admin.register(EmailVerification)
+class EmailVerificationAdmin(admin.ModelAdmin):
+    list_display = ("user", "created_at", "expires_at", "used_at", "is_used")
+    list_filter = ("used_at",)
+    search_fields = ("user__email",)
+    readonly_fields = ("user", "token_hash", "created_at", "expires_at", "used_at")
+    ordering = ("-created_at",)
+
+    @admin.display(boolean=True, description="Used")
+    def is_used(self, obj):
+        return obj.used_at is not None
