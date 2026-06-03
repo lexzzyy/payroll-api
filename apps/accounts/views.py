@@ -21,16 +21,19 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 
-from .models import EmailVerification
+from .models import EmailVerification, PasswordResetToken
 from .serializers import (
     CurrentUserSerializer,
     LoginSerializer,
     LogoutSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
+    PasswordResetValidateTokenSerializer,
     ResendVerificationSerializer,
     SignupSerializer,
     VerifyEmailSerializer,
 )
-from .tasks import send_verification_email
+from .tasks import send_password_reset_email, send_verification_email
 
 User = get_user_model()
 
@@ -224,5 +227,113 @@ class ResendVerificationView(APIView):
                     "a new verification link has been sent."
                 )
             },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PasswordResetRequestView(APIView):
+    """
+    POST /api/v1/auth/password-reset/
+    Send a password reset email. Always returns success to prevent
+    email enumeration — never reveals whether an account exists.
+    """
+
+    permission_classes = [AllowAny]
+    serializer_class = PasswordResetRequestSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            user = User.objects.get(
+                email=serializer.validated_data["email"],
+                is_active=True,
+            )
+            _, plain_token = PasswordResetToken.generate(user)
+            send_password_reset_email.delay(user.id, plain_token)
+        except User.DoesNotExist:
+            pass  # never leak whether the email is registered
+
+        return Response(
+            {
+                "detail": (
+                    "If an account with this email exists, " "a password reset link has been sent."
+                )
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PasswordResetConfirmView(APIView):
+    """
+    POST /api/v1/auth/password-reset/confirm/
+    Validate the token and set the new password.
+    Invalidates all existing JWT refresh tokens on success.
+    """
+
+    permission_classes = [AllowAny]
+    serializer_class = PasswordResetConfirmSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        reset_token = PasswordResetToken.find_valid(serializer.validated_data["token"])
+        if reset_token is None:
+            return Response(
+                {"detail": "Invalid or expired reset token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = reset_token.user
+
+        # Set the new password
+        user.set_password(serializer.validated_data["new_password"])
+        user.save(update_fields=["password"])
+
+        # Consume the token — can't be reused
+        reset_token.consume()
+
+        # Blacklist all outstanding refresh tokens for this user
+        # so any stolen sessions are immediately invalidated
+        try:
+            from rest_framework_simplejwt.token_blacklist.models import (
+                OutstandingToken,
+            )
+            from rest_framework_simplejwt.tokens import RefreshToken
+
+            for token in OutstandingToken.objects.filter(user=user):
+                try:
+                    RefreshToken(token.token).blacklist()
+                except Exception:
+                    pass
+        except Exception:
+            pass  # blacklisting is best-effort; don't fail the reset
+
+        return Response(
+            {"detail": "Password reset successfully. You can now log in."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class PasswordResetValidateTokenView(APIView):
+    """
+    POST /api/v1/auth/password-reset/validate-token/
+    Check if a token is valid without consuming it.
+    Used by the frontend to show/hide the reset form before submission.
+    """
+
+    permission_classes = [AllowAny]
+    serializer_class = PasswordResetValidateTokenSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        token = PasswordResetToken.find_valid(serializer.validated_data["token"])
+
+        return Response(
+            {"valid": token is not None},
             status=status.HTTP_200_OK,
         )

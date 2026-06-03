@@ -202,3 +202,37 @@ class ResendVerificationSerializer(serializers.Serializer):
 
 class VerifyEmailSerializer(serializers.Serializer):
     token = serializers.CharField(required=True, min_length=20)
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """Request a password reset email."""
+
+    email = serializers.EmailField(required=True)
+
+    def validate_email(self, value: str) -> str:
+        return value.lower().strip()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """Submit a new password with the reset token."""
+
+    token = serializers.CharField(required=True, min_length=20)
+    new_password = serializers.CharField(
+        required=True,
+        min_length=10,
+        write_only=True,
+        style={"input_type": "password"},
+    )
+
+    def validate_new_password(self, value: str) -> str:
+        try:
+            validate_password(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(list(exc.messages)) from exc
+        return value
+
+
+class PasswordResetValidateTokenSerializer(serializers.Serializer):
+    """Check if a token is still valid (for frontend UX)."""
+
+    token = serializers.CharField(required=True, min_length=20)

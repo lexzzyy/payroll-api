@@ -63,3 +63,49 @@ def send_verification_email(self, user_id: int, plain_token: str) -> None:
     )
 
     logger.info("Verification email sent to %s", user.email)
+
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=60,
+    retry_backoff_max=600,
+    retry_jitter=True,
+)
+def send_password_reset_email(self, user_id: int, plain_token: str) -> None:
+    """
+    Send a password reset link to the user.
+    Same retry pattern as send_verification_email.
+    """
+    from .models import User
+
+    try:
+        user = User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        logger.warning("send_password_reset_email: user %s not found, skipping", user_id)
+        return
+
+    reset_url = f"{settings.FRONTEND_BASE_URL}/reset-password?token={plain_token}"
+
+    context = {
+        "user": user,
+        "reset_url": reset_url,
+        "support_email": settings.DEFAULT_FROM_EMAIL,
+        "expiry_hours": 1,
+    }
+
+    subject = "Reset your password"
+    text_body = render_to_string("accounts/email/password_reset.txt", context)
+    html_body = render_to_string("accounts/email/password_reset.html", context)
+
+    send_mail(
+        subject=subject,
+        message=text_body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        html_message=html_body,
+        fail_silently=False,
+    )
+
+    logger.info("Password reset email sent to %s", user.email)

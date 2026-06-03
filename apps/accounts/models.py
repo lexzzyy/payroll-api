@@ -213,3 +213,82 @@ class EmailVerification(models.Model):
         """Mark this token as used. Single-use enforcement."""
         self.used_at = timezone.now()
         self.save(update_fields=["used_at"])
+
+
+class PasswordResetToken(models.Model):
+    """
+    Single-use, time-bounded password reset tokens.
+
+    Same security pattern as EmailVerification — only the hash is stored,
+    never the plain token. Expires in 1 hour (shorter than email verification
+    because password reset is higher-risk).
+    """
+
+    user = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.CASCADE,
+        related_name="password_reset_tokens",
+    )
+    token_hash = models.CharField(
+        max_length=64,
+        unique=True,
+        db_index=True,
+        help_text=_("SHA-256 hex digest of the plain token."),
+    )
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_("Set when the token is consumed. Single-use."),
+    )
+
+    TOKEN_LIFETIME = timedelta(hours=1)  # shorter than email verification
+
+    class Meta:
+        verbose_name = _("password reset token")
+        verbose_name_plural = _("password reset tokens")
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["user", "used_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"PasswordReset for {self.user.email} ({self.created_at:%Y-%m-%d})"
+
+    @classmethod
+    def generate(cls, user: User) -> tuple[PasswordResetToken, str]:
+        """
+        Create a new reset token for the user.
+        Returns the record and the plain token (to be emailed).
+        """
+        plain_token = secrets.token_urlsafe(48)
+        token_hash = sha256(plain_token.encode()).hexdigest()
+        token = cls.objects.create(
+            user=user,
+            token_hash=token_hash,
+            expires_at=timezone.now() + cls.TOKEN_LIFETIME,
+        )
+        return token, plain_token
+
+    @classmethod
+    def find_valid(cls, plain_token: str) -> PasswordResetToken | None:
+        """
+        Look up a valid (non-expired, non-used) token by plain value.
+        Returns None for any invalid token — caller cannot distinguish why.
+        """
+        token_hash = sha256(plain_token.encode()).hexdigest()
+        return (
+            cls.objects.filter(
+                token_hash=token_hash,
+                used_at__isnull=True,
+                expires_at__gt=timezone.now(),
+            )
+            .select_related("user")
+            .first()
+        )
+
+    def consume(self) -> None:
+        """Mark this token as used. Single-use enforcement."""
+        self.used_at = timezone.now()
+        self.save(update_fields=["used_at"])
