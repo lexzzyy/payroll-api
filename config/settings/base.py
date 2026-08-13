@@ -157,6 +157,12 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 25,
+    "DEFAULT_THROTTLE_RATES": {
+        "login": "5/m",
+        "signup": "10/h",
+        "password_reset": "3/h",
+        "resend_verification": "3/h",
+    },
 }
 
 SIMPLE_JWT = {
@@ -192,3 +198,23 @@ CELERY_BROKER_URL = env("REDIS_URL", default="redis://redis:6379/0")
 CELERY_RESULT_BACKEND = env("REDIS_URL", default="redis://redis:6379/0")
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes hard limit
+
+# ---------------------------------------------------------------------
+# Cache (Redis) — used by throttling and future caching layers
+# ---------------------------------------------------------------------
+"""
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": env("REDIS_URL", default="redis://redis:6379/1"),
+        "KEY_PREFIX": "payroll",
+    }
+}
+"""
+# Use in-memory cache for tests — fast, isolated, no Redis dependency
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "test-cache",
+    }
+}
