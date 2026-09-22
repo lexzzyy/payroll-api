@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from django.contrib import admin
 
-from .models import Membership, Organisation
+from .models import Membership, Organisation, OrganisationInvitation
 
 
 class MembershipInline(admin.TabularInline):
@@ -88,3 +88,26 @@ class MembershipAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
     )
+
+
+@admin.register(OrganisationInvitation)
+class OrganisationInvitationAdmin(admin.ModelAdmin):
+    list_display = (
+        "email",
+        "organisation",
+        "role",
+        "is_pending",
+        "created_at",
+        "expires_at",
+    )
+    list_filter = ("role", "organisation")
+    search_fields = ("email", "organisation__legal_name")
+    readonly_fields = (
+        "public_id",
+        "token_hash",
+        "created_at",
+        "expires_at",
+        "accepted_at",
+        "revoked_at",
+    )
+    ordering = ("-created_at",)

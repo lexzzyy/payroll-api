@@ -8,7 +8,10 @@ Users connect to Organisations via Membership rows that carry a Role
 
 from __future__ import annotations
 
+import secrets
 import uuid
+from datetime import timedelta
+from hashlib import sha256
 
 from django.conf import settings
 from django.db import models
@@ -234,3 +237,107 @@ class Membership(models.Model):
             return
         self.accepted_at = timezone.now()
         self.save(update_fields=["accepted_at"])
+
+
+class OrganisationInvitation(models.Model):
+    """
+    A pending invitation for someone to join an organisation with a role.
+
+    Carries a hashed, single-use, time-bounded token (like email
+    verification). On acceptance, a Membership is created (or an existing
+    pending one is activated).
+    """
+
+    public_id = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        unique=True,
+        db_index=True,
+    )
+    organisation = models.ForeignKey(
+        Organisation,
+        on_delete=models.CASCADE,
+        related_name="invitations",
+    )
+    email = models.EmailField(
+        help_text=_("Email address the invitation was sent to."),
+    )
+    role = models.CharField(
+        max_length=32,
+        choices=Role.choices,
+        default=Role.EMPLOYEE,
+    )
+    token_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invitations_sent",
+    )
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+    expires_at = models.DateTimeField()
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    TOKEN_LIFETIME = timedelta(days=7)
+
+    class Meta:
+        verbose_name = _("organisation invitation")
+        verbose_name_plural = _("organisation invitations")
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organisation", "email"],
+                condition=models.Q(accepted_at__isnull=True, revoked_at__isnull=True),
+                name="unique_pending_invitation_per_email_org",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organisation", "accepted_at", "revoked_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Invite {self.email} to {self.organisation} as {self.role}"
+
+    @property
+    def is_pending(self) -> bool:
+        return (
+            self.accepted_at is None
+            and self.revoked_at is None
+            and self.expires_at > timezone.now()
+        )
+
+    @classmethod
+    def generate(cls, organisation, email, role, invited_by):
+        """Create an invitation. Returns (invitation, plain_token)."""
+        plain_token = secrets.token_urlsafe(48)
+        token_hash = sha256(plain_token.encode()).hexdigest()
+        invitation = cls.objects.create(
+            organisation=organisation,
+            email=email.lower().strip(),
+            role=role,
+            token_hash=token_hash,
+            invited_by=invited_by,
+            expires_at=timezone.now() + cls.TOKEN_LIFETIME,
+        )
+        return invitation, plain_token
+
+    @classmethod
+    def find_valid(cls, plain_token):
+        """Find a pending invitation by plain token, else None."""
+        token_hash = sha256(plain_token.encode()).hexdigest()
+        return (
+            cls.objects.filter(
+                token_hash=token_hash,
+                accepted_at__isnull=True,
+                revoked_at__isnull=True,
+                expires_at__gt=timezone.now(),
+            )
+            .select_related("organisation")
+            .first()
+        )
+
+    def revoke(self):
+        self.revoked_at = timezone.now()
+        self.save(update_fields=["revoked_at"])

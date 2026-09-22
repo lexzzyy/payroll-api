@@ -1,0 +1,13 @@
+Hello,
+
+{{ inviter }} has invited you to join {{ organisation }} as a {{ role }}.
+
+Click the link below to accept:
+
+{{ accept_url }}
+
+This invitation expires in 7 days. If you weren't expecting this, you can
+safely ignore this email.
+
+— {{ organisation }}
+{{ support_email }}
