@@ -51,7 +51,7 @@ LOCAL_APPS = [
     # Will be populated as we create apps:
     "apps.accounts",
     "apps.organisations",
-    # "apps.employees",
+    "apps.employees",
     # "apps.payroll",
     # "apps.leave",
     # "apps.audit",
